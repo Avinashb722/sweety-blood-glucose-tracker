@@ -179,9 +179,134 @@ const getMe = async (req, res) => {
   }
 };
 
+// Request password reset token
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your registered email address.'
+      });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    const userRes = await db.query(
+      'SELECT id, name, email FROM users WHERE LOWER(email) = $1',
+      [trimmedEmail]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email address.'
+      });
+    }
+
+    const user = userRes.rows[0];
+
+    // Generate reset token valid for 15 minutes
+    const secret = process.env.JWT_SECRET || 'sweety_jwt_secret_key';
+    const resetToken = jwt.sign(
+      { id: user.id, email: user.email, type: 'password_reset' },
+      secret,
+      { expiresIn: '15m' }
+    );
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5180';
+    const resetUrl = `${clientUrl}/reset-password?token=${resetToken}`;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset link generated successfully.',
+      data: {
+        resetToken,
+        resetUrl
+      }
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error processing password reset request.'
+    });
+  }
+};
+
+// Reset password with token
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token is required.'
+      });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long.'
+      });
+    }
+
+    const secret = process.env.JWT_SECRET || 'sweety_jwt_secret_key';
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret);
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired password reset link. Please request a new one.'
+      });
+    }
+
+    if (decoded.type !== 'password_reset') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid reset token.'
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password in database
+    const updateRes = await db.query(
+      'UPDATE users SET password = $1 WHERE id = $2 RETURNING id, email',
+      [hashedPassword, decoded.id]
+    );
+
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User account not found.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. You can now log in.'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error resetting password.'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  forgotPassword,
+  resetPassword
 };
 

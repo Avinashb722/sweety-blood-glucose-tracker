@@ -85,5 +85,67 @@ describe('Authentication API Tests', () => {
     expect(meRes.body.success).toBe(true);
     expect(meRes.body.data.user.email).toBe(testUser.email);
   });
+
+  describe('Forgot & Reset Password API Tests', () => {
+    let resetToken;
+
+    test('POST /api/auth/forgot-password - Generate reset token for existing email', async () => {
+      const res = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email: testUser.email });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveProperty('resetToken');
+      resetToken = res.body.data.resetToken;
+    });
+
+    test('POST /api/auth/forgot-password - Reject non-existent email', async () => {
+      const res = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email: 'nonexistent@example.com' });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('No account found with this email address.');
+    });
+
+    test('POST /api/auth/reset-password - Reset password using valid token', async () => {
+      const res = await request(app)
+        .post('/api/auth/reset-password')
+        .send({
+          token: resetToken,
+          newPassword: 'BrandNewPassword123'
+        });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toContain('Password has been reset successfully');
+    });
+
+    test('POST /api/auth/login - Login succeeds with new password', async () => {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: testUser.email,
+          password: 'BrandNewPassword123'
+        });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    test('POST /api/auth/reset-password - Reject invalid reset token', async () => {
+      const res = await request(app)
+        .post('/api/auth/reset-password')
+        .send({
+          token: 'invalid_token_xyz',
+          newPassword: 'AnotherPassword123'
+        });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.body.success).toBe(false);
+    });
+  });
 });
 
