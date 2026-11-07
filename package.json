@@ -1,0 +1,11 @@
+{
+  "name": "sweety",
+  "version": "1.0.0",
+  "description": "Sweety – Blood Glucose Tracker",
+  "scripts": {
+    "server": "npm --prefix server start",
+    "client": "npm --prefix client run dev",
+    "test": "npm --prefix server test",
+    "seed": "npm --prefix server run seed"
+  }
+}

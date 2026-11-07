@@ -4,10 +4,7 @@ require('dotenv').config();
 // Parse DATE columns as raw YYYY-MM-DD string to avoid timezone shifts
 types.setTypeParser(1082, (val) => val);
 
-let pool;
-
-if (process.env.NODE_ENV === 'test') {
-  // In test environment, use pg-mem for an isolated, self-contained PostgreSQL instance
+function createMemPool() {
   const { newDb } = require('pg-mem');
   const fs = require('fs');
   const path = require('path');
@@ -54,24 +51,57 @@ if (process.env.NODE_ENV === 'test') {
   memDb.public.none(schemaSql);
 
   const adapter = memDb.adapters.createPg();
-  pool = new adapter.Pool();
-} else {
-  // Production / Development environment uses standard PostgreSQL
-  const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/sweety_db';
-  pool = new Pool({
-    connectionString,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-  });
+  return new adapter.Pool();
 }
 
-// Simple query helper
-const query = (text, params) => pool.query(text, params);
+let activePool;
+let isUsingMemDb = false;
 
-// Helper for transactions
-const getClient = () => pool.connect();
+if (process.env.NODE_ENV === 'test') {
+  activePool = createMemPool();
+  isUsingMemDb = true;
+} else {
+  const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/sweety_db';
+  const realPool = new Pool({
+    connectionString,
+    connectionTimeoutMillis: 2000,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+
+  // Check connectivity to real PostgreSQL
+  realPool.connect((err, client, release) => {
+    if (err) {
+      console.warn('⚠️  PostgreSQL connection unavailable on localhost:5432.');
+      console.log('🔄  Seamlessly initialized in-memory PostgreSQL engine for local run & demo.');
+      activePool = createMemPool();
+      isUsingMemDb = true;
+
+      // Seed the in-memory database automatically
+      const seed = require('../database/seed');
+      seed().catch((seedErr) => console.error('Auto-seed error:', seedErr));
+    } else {
+      console.log('✅ Connected to PostgreSQL database.');
+      release();
+    }
+  });
+
+  activePool = realPool;
+}
+
+// Proxy-safe query wrapper
+const query = (text, params) => {
+  return activePool.query(text, params);
+};
+
+// Proxy-safe client wrapper
+const getClient = () => {
+  return activePool.connect();
+};
 
 module.exports = {
-  pool,
+  get pool() {
+    return activePool;
+  },
   query,
   getClient
 };

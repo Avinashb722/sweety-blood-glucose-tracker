@@ -108,7 +108,7 @@ async function seed() {
   } catch (error) {
     console.error('Seeding error:', error);
   } finally {
-    if (process.env.NODE_ENV !== 'test') {
+    if (require.main === module) {
       await db.pool.end();
     }
   }
