@@ -86,3 +86,4 @@ describe('Authentication API Tests', () => {
     expect(meRes.body.data.user.email).toBe(testUser.email);
   });
 });
+

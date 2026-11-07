@@ -11,3 +11,4 @@ router.get('/month-to-date', reportController.getMonthToDateReport);
 router.get('/monthly', reportController.getMonthlyReport);
 
 module.exports = router;
+

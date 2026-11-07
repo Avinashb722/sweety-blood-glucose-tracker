@@ -60,3 +60,4 @@ const ReportCard = ({ title, dateRange, stats, emptyMessage = 'No glucose readin
 };
 
 export default ReportCard;
+

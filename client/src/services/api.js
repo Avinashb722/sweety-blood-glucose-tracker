@@ -95,3 +95,4 @@ export const reportService = {
 };
 
 export default api;
+

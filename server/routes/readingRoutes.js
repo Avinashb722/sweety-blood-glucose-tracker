@@ -13,3 +13,4 @@ router.put('/:id', readingController.updateReading);
 router.delete('/:id', readingController.deleteReading);
 
 module.exports = router;
+

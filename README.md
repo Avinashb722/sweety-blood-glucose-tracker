@@ -282,3 +282,4 @@ All response bodies follow a consistent JSON structure:
 1. **Push & Email Notifications**: Automated reminders if a patient hasn't logged their readings by evening.
 2. **Export Functionality**: One-click PDF or CSV export for sharing reports directly with consulting endocrinologists.
 3. **Doctor Portal**: Role-based access control (RBAC) allowing medical professionals to monitor patient readings remotely.
+
