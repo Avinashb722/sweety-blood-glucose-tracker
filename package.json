@@ -9,3 +9,4 @@
     "seed": "npm --prefix server run seed"
   }
 }
+
