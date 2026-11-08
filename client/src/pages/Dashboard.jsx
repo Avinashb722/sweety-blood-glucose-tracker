@@ -6,8 +6,8 @@ import ReportCard from '../components/ReportCard';
 import { readingService, reportService } from '../services/api';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -23,6 +23,26 @@ const getTodayString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const getYesterdayString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Format YYYY-MM-DD into "10 Oct" for chart axis
+const formatChartDate = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = String(dateStr).split('-');
+  if (parts.length < 3) return dateStr;
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = parseInt(parts[2], 10);
+  const mIndex = parseInt(parts[1], 10) - 1;
+  return `${day} ${monthNames[mIndex] || ''}`;
+};
+
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'reports'
   const [readings, setReadings] = useState([]);
@@ -32,6 +52,7 @@ const Dashboard = () => {
 
   // Reports state
   const [selectedReportDate, setSelectedReportDate] = useState(getTodayString());
+  const [reportFilter, setReportFilter] = useState('all'); // 'all', 'daily', 'mtd', 'monthly'
   const [dailyReport, setDailyReport] = useState(null);
   const [mtdReport, setMtdReport] = useState(null);
   const [monthlyReport, setMonthlyReport] = useState(null);
@@ -233,9 +254,9 @@ const Dashboard = () => {
           </>
         )}
 
-        {/* REPORTS TAB */}
+        {/* REPORTS TAB - ALL IN ONE HIGH-VISIBILITY COLUMN */}
         {activeTab === 'reports' && (
-          <section>
+          <section className="reports-container">
             {/* Date Selector Bar */}
             <div className="date-selector-bar">
               <div className="date-selector-group">
@@ -249,15 +270,54 @@ const Dashboard = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="btn-secondary"
                   onClick={() => setSelectedReportDate(getTodayString())}
                 >
-                  Set to Today
+                  📅 Set to Today
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setSelectedReportDate(getYesterdayString())}
+                >
+                  ⏮️ Yesterday
                 </button>
               </div>
+            </div>
+
+            {/* High-Visibility Report Filter Pills */}
+            <div className="report-filter-bar">
+              <button
+                type="button"
+                className={`report-filter-pill ${reportFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setReportFilter('all')}
+              >
+                📄 All Reports (1 Column View)
+              </button>
+              <button
+                type="button"
+                className={`report-filter-pill ${reportFilter === 'daily' ? 'active' : ''}`}
+                onClick={() => setReportFilter('daily')}
+              >
+                📅 1. Daily Report
+              </button>
+              <button
+                type="button"
+                className={`report-filter-pill ${reportFilter === 'mtd' ? 'active' : ''}`}
+                onClick={() => setReportFilter('mtd')}
+              >
+                📈 2. Month-to-Date
+              </button>
+              <button
+                type="button"
+                className={`report-filter-pill ${reportFilter === 'monthly' ? 'active' : ''}`}
+                onClick={() => setReportFilter('monthly')}
+              >
+                🗓️ 3. Monthly & Trend Chart
+              </button>
             </div>
 
             {isReportLoading ? (
@@ -265,128 +325,217 @@ const Dashboard = () => {
                 <p className="empty-subtitle">Calculating glucose reports...</p>
               </div>
             ) : (
-              <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
                 {/* 1. Daily Report */}
-                <div style={{ marginBottom: '32px' }}>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
-                    📅 1. Daily Report
-                  </h2>
-                  <ReportCard
-                    title="Daily Report Summary"
-                    dateRange={`Selected Date: ${dailyReport?.formatted_date || selectedReportDate}`}
-                    stats={dailyReport}
-                    emptyMessage="No glucose readings found for this date."
-                  />
-
-                  {/* Daily Report list of readings with slot */}
-                  {dailyReport && dailyReport.readings && dailyReport.readings.length > 0 && (
-                    <div className="card" style={{ marginTop: '-12px' }}>
-                      <div className="card-title">
-                        <span style={{ fontSize: '1rem' }}>Readings on {dailyReport.formatted_date}</span>
-                      </div>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Time Slot</th>
-                            <th>Glucose Value</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dailyReport.readings.map((r) => (
-                            <tr key={r.id}>
-                              <td><span className="slot-tag">{r.time_slot}</span></td>
-                              <td style={{ fontWeight: 700 }}>{r.glucose_value} mg/dl</td>
-                              <td>
-                                <span className={`glucose-pill ${r.glucose_value < 70 ? 'low' : r.glucose_value > 140 ? 'high' : 'normal'}`}>
-                                  {r.glucose_value < 70 ? 'Low' : r.glucose_value > 140 ? 'High' : 'Normal'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {(reportFilter === 'all' || reportFilter === 'daily') && (
+                  <div className="report-block">
+                    <div className="report-section-header">
+                      <h2 className="report-section-title">
+                        📅 1. Daily Report
+                      </h2>
                     </div>
-                  )}
-                </div>
+
+                    <ReportCard
+                      title="Daily Report Summary"
+                      dateRange={`Selected Date: ${dailyReport?.formatted_date || selectedReportDate}`}
+                      stats={dailyReport}
+                      emptyMessage="No glucose readings found for this date."
+                    />
+
+                    {/* Daily Report list of readings with slot */}
+                    {dailyReport && dailyReport.readings && dailyReport.readings.length > 0 && (
+                      <div className="card" style={{ marginTop: '-12px' }}>
+                        <div className="card-title">
+                          <span style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+                            Detailed Readings for {dailyReport.formatted_date}
+                          </span>
+                        </div>
+                        <div className="table-responsive">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Time Slot</th>
+                                <th>Glucose Value</th>
+                                <th>Clinical Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dailyReport.readings.map((r) => (
+                                <tr key={r.id}>
+                                  <td>
+                                    <span className="slot-tag">{r.time_slot}</span>
+                                  </td>
+                                  <td>
+                                    <span style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>
+                                      {r.glucose_value}
+                                    </span>{' '}
+                                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>mg/dl</span>
+                                  </td>
+                                  <td>
+                                    <span className={`glucose-pill ${r.glucose_value < 70 ? 'low' : r.glucose_value > 140 ? 'high' : 'normal'}`}>
+                                      {r.glucose_value < 70 ? '⚠️ Low' : r.glucose_value > 140 ? '⚠️ High' : '✓ Normal'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 2. Month-to-date Report */}
-                <div style={{ marginBottom: '32px' }}>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
-                    📈 2. Month-to-Date Report
-                  </h2>
-                  <ReportCard
-                    title="Month-to-Date Summary"
-                    dateRange={`Date range: ${mtdReport?.date_range_display || ''}`}
-                    stats={mtdReport}
-                    emptyMessage="No glucose readings found for this period."
-                  />
-                </div>
-
-                {/* 3. Monthly Report (Whole previous month) */}
-                <div style={{ marginBottom: '32px' }}>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
-                    🗓️ 3. Monthly Report (Whole Previous Month)
-                  </h2>
-                  <ReportCard
-                    title="Previous Month Summary"
-                    dateRange={`Date range: ${monthlyReport?.date_range_display || ''}`}
-                    stats={monthlyReport}
-                    emptyMessage="No glucose readings found for this period."
-                  />
-
-                  {/* Bonus Task: Monthly Trend Chart using Recharts */}
-                  {monthlyReport && monthlyReport.trend && monthlyReport.trend.length > 0 && (
-                    <div className="card" style={{ marginTop: '16px' }}>
-                      <div className="card-title">
-                        <span>📊 Previous Month Daily Average Trend</span>
-                      </div>
-                      <div style={{ width: '100%', height: 280, marginTop: '16px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            data={monthlyReport.trend}
-                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                            <XAxis
-                              dataKey="date"
-                              stroke="#64748b"
-                              fontSize={12}
-                              tickFormatter={(str) => str.slice(5)} // Show MM-DD
-                            />
-                            <YAxis
-                              stroke="#64748b"
-                              fontSize={12}
-                              domain={[40, 'auto']}
-                              unit=" mg"
-                            />
-                            <Tooltip
-                              formatter={(value) => [`${value} mg/dl`, 'Avg Glucose']}
-                              labelFormatter={(label) => `Date: ${label}`}
-                              contentStyle={{
-                                backgroundColor: '#ffffff',
-                                borderRadius: '8px',
-                                border: '1px solid #e2e8f0',
-                                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                              }}
-                            />
-                            <ReferenceLine y={140} stroke="#f43f5e" strokeDasharray="3 3" label={{ value: 'Target Max (140)', fill: '#f43f5e', fontSize: 11 }} />
-                            <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Target Min (70)', fill: '#f59e0b', fontSize: 11 }} />
-                            <Line
-                              type="monotone"
-                              dataKey="avg"
-                              stroke="#db2777"
-                              strokeWidth={3}
-                              dot={{ r: 4, fill: '#db2777' }}
-                              activeDot={{ r: 6 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
+                {(reportFilter === 'all' || reportFilter === 'mtd') && (
+                  <div className="report-block">
+                    <div className="report-section-header">
+                      <h2 className="report-section-title">
+                        📈 2. Month-to-Date Report
+                      </h2>
                     </div>
-                  )}
-                </div>
-              </>
+
+                    <ReportCard
+                      title="Month-to-Date Summary"
+                      dateRange={`Date range: ${mtdReport?.date_range_display || ''}`}
+                      stats={mtdReport}
+                      emptyMessage="No glucose readings found for this period."
+                    />
+                  </div>
+                )}
+
+                {/* 3. Monthly Report (Whole previous month) & Trend Chart */}
+                {(reportFilter === 'all' || reportFilter === 'monthly') && (
+                  <div className="report-block">
+                    <div className="report-section-header">
+                      <h2 className="report-section-title">
+                        🗓️ 3. Monthly Report (Whole Previous Month)
+                      </h2>
+                    </div>
+
+                    <ReportCard
+                      title="Previous Month Summary"
+                      dateRange={`Date range: ${monthlyReport?.date_range_display || ''}`}
+                      stats={monthlyReport}
+                      emptyMessage="No glucose readings found for this period."
+                    />
+
+                    {/* High Visibility Monthly Trend Chart using Recharts */}
+                    {monthlyReport && monthlyReport.trend && monthlyReport.trend.length > 0 && (
+                      <div className="card" style={{ marginTop: '16px' }}>
+                        <div className="card-title">
+                          <div>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                              📊 Previous Month Daily Average Trend
+                            </span>
+                            <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>
+                              Blood glucose averages plotted across dates in {monthlyReport.date_range_display}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Chart Area */}
+                        <div style={{ width: '100%', height: 320, marginTop: '16px' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                              data={monthlyReport.trend}
+                              margin={{ top: 15, right: 25, left: 0, bottom: 25 }}
+                            >
+                              <defs>
+                                <linearGradient id="glucoseGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#db2777" stopOpacity={0.25} />
+                                  <stop offset="95%" stopColor="#db2777" stopOpacity={0.0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                              <XAxis
+                                dataKey="date"
+                                stroke="#64748b"
+                                fontSize={12}
+                                tickFormatter={formatChartDate}
+                                tickLine={false}
+                                dy={10}
+                              />
+                              <YAxis
+                                stroke="#64748b"
+                                fontSize={12}
+                                domain={[40, 'auto']}
+                                unit=" mg"
+                                tickLine={false}
+                              />
+                              <Tooltip
+                                formatter={(value) => [`${value} mg/dl`, 'Daily Average']}
+                                labelFormatter={(label) => `Date: ${formatChartDate(label)} (${label})`}
+                                contentStyle={{
+                                  backgroundColor: '#ffffff',
+                                  borderRadius: '8px',
+                                  border: '1px solid #e2e8f0',
+                                  boxShadow: '0 4px 10px rgba(0,0,0,0.08)'
+                                }}
+                              />
+                              <ReferenceLine
+                                y={140}
+                                stroke="#ef4444"
+                                strokeDasharray="4 4"
+                                label={{ value: 'Target Max (140 mg/dl)', fill: '#ef4444', fontSize: 11, position: 'top' }}
+                              />
+                              <ReferenceLine
+                                y={70}
+                                stroke="#f59e0b"
+                                strokeDasharray="4 4"
+                                label={{ value: 'Target Min (70 mg/dl)', fill: '#d97706', fontSize: 11, position: 'bottom' }}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey="avg"
+                                stroke="#db2777"
+                                strokeWidth={3}
+                                fillOpacity={1}
+                                fill="url(#glucoseGradient)"
+                                dot={{ r: 5, fill: '#db2777', stroke: '#ffffff', strokeWidth: 2 }}
+                                activeDot={{ r: 7, fill: '#db2777', stroke: '#ffffff', strokeWidth: 2 }}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {/* Daily Breakdown Table for the Chart */}
+                        <div style={{ marginTop: '24px' }}>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#334155', marginBottom: '10px' }}>
+                            Daily Statistics Breakdown:
+                          </h4>
+                          <div className="table-responsive">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Date</th>
+                                  <th>Readings Logged</th>
+                                  <th>Lowest Value</th>
+                                  <th>Highest Value</th>
+                                  <th>Average Glucose</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {monthlyReport.trend.map((day) => (
+                                  <tr key={day.date}>
+                                    <td style={{ fontWeight: 600 }}>{formatChartDate(day.date)}</td>
+                                    <td>{day.count} {day.count === 1 ? 'reading' : 'readings'}</td>
+                                    <td style={{ color: '#059669', fontWeight: 600 }}>{day.min} mg/dl</td>
+                                    <td style={{ color: '#7c3aed', fontWeight: 600 }}>{day.max} mg/dl</td>
+                                    <td>
+                                      <span style={{ fontWeight: 700, color: '#db2777' }}>{day.avg} mg/dl</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </section>
         )}
@@ -396,4 +545,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
